@@ -668,7 +668,18 @@ if ("serviceWorker" in navigator) {
       reloading = true;
       location.reload();
     });
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker
+      .register("sw.js", { updateViaCache: "none" })
+      .then((registration) => {
+        // An installed PWA is often resumed from memory without reloading:
+        // check for a new version every time the app comes back to the foreground
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") {
+            registration.update().catch(() => {});
+          }
+        });
+      })
+      .catch(() => {});
   });
 }
 </script>
