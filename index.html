@@ -193,7 +193,11 @@
     white-space: nowrap;
   }
   .sheet dd.negative { color: var(--negative); }
-  .sheet dd.not-applied { color: var(--muted); font-weight: 400; }
+  /* Taxable amount (private clients): a subtotal of the rows above */
+  .sheet .subtotal {
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--rule);
+  }
   .sheet .total {
     padding-top: 0.9rem;
     border-top: 1px solid var(--rule);
@@ -320,8 +324,12 @@
       <dt>Contributo ENPAV <span class="rate" id="rate-label-enpav"></span></dt>
       <dd id="out-enpav">–</dd>
 
-      <dt>Ritenuta <span class="rate" id="rate-label-withholding"></span></dt>
-      <dd id="out-withholding" class="negative">–</dd>
+      <!-- Business client: withholding tax. Private client: taxable amount. -->
+      <dt id="term-third">
+        <span id="term-withholding">Ritenuta <span class="rate" id="rate-label-withholding"></span></span>
+        <span id="term-taxable" hidden>Imponibile</span>
+      </dt>
+      <dd id="out-third" class="negative">–</dd>
 
       <dt>IVA <span class="rate" id="rate-label-vat"></span></dt>
       <dd id="out-vat">–</dd>
@@ -515,25 +523,32 @@ function refreshRateLabels() {
   for (const key of RATE_KEYS) {
     $("rate-label-" + key).textContent = formatRate(rates[key]) + "%";
   }
-  if (clientType === "private") $("rate-label-withholding").textContent = "";
 }
 
-// Withholding row: shows the amount, a placeholder, or "non applicata"
-function renderWithholding(amountCents) {
-  const out = $("out-withholding");
-  const notApplied = clientType === "private";
-  out.classList.toggle("negative", !notApplied);
-  out.classList.toggle("not-applied", notApplied);
-  if (notApplied) out.textContent = "non applicata";
-  else if (amountCents === null) out.textContent = "–";
-  else out.textContent = "− " + formatEur(amountCents);
+// Third row of the breakdown:
+//  - business client -> withholding tax (negative)
+//  - private client  -> taxable amount = base + ENPAV (VAT is computed on it)
+// result: breakdown() output, or null when there is nothing to show
+function renderThirdRow(result) {
+  const isPrivate = clientType === "private";
+  $("term-withholding").hidden = isPrivate;
+  $("term-taxable").hidden = !isPrivate;
+  $("term-third").classList.toggle("subtotal", isPrivate);
+
+  const out = $("out-third");
+  out.classList.toggle("negative", !isPrivate);
+  out.classList.toggle("subtotal", isPrivate);
+
+  if (result === null) out.textContent = "–";
+  else if (isPrivate) out.textContent = formatEur(result.base + result.enpav);
+  else out.textContent = "− " + formatEur(result.withholding);
 }
 
 function clearResults() {
   for (const id of ["out-base", "out-enpav", "out-vat", "out-total"]) {
     $(id).textContent = "–";
   }
-  renderWithholding(null);
+  renderThirdRow(null);
   sheet.classList.add("empty");
 }
 
@@ -570,7 +585,7 @@ function update(immediateError = false) {
   const r = breakdown(parsed.value, effectiveRates(rates, clientType));
   $("out-base").textContent = formatEur(r.base);
   $("out-enpav").textContent = formatEur(r.enpav);
-  renderWithholding(r.withholding);
+  renderThirdRow(r);
   $("out-vat").textContent = formatEur(r.vat);
   $("out-total").textContent = formatEur(r.total);
   sheet.classList.remove("empty");
