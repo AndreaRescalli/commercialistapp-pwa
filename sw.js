@@ -1,7 +1,7 @@
 // Service worker: caches the app for offline use.
 // IMPORTANT: bump CACHE_VERSION every time you change any file,
 // otherwise installed phones keep serving the old version.
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = `commercialistapp-${CACHE_VERSION}`;
 
 const ASSETS = [

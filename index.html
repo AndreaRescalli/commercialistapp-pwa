@@ -79,6 +79,54 @@
   .icon-btn:hover { background: var(--paper); color: var(--ink); }
   .icon-btn svg { width: 1.5rem; height: 1.5rem; }
 
+  /* Client type selector */
+  .client-type {
+    margin: 0 0 1.75rem;
+    padding: 0;
+    border: 0;
+  }
+  .client-type legend {
+    padding: 0;
+    margin-bottom: 0.35rem;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .segmented {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--paper);
+  }
+  .segmented input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .segmented label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 1rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .segmented input:checked + label {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  .segmented input:focus-visible + label {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   /* Amount input: the focal element of the page */
   .amount-label {
     display: block;
@@ -145,6 +193,7 @@
     white-space: nowrap;
   }
   .sheet dd.negative { color: var(--negative); }
+  .sheet dd.not-applied { color: var(--muted); font-weight: 400; }
   .sheet .total {
     padding-top: 0.9rem;
     border-top: 1px solid var(--rule);
@@ -243,6 +292,16 @@
       </svg>
     </button>
   </header>
+
+  <fieldset class="client-type">
+    <legend>Tipo di cliente</legend>
+    <div class="segmented">
+      <input type="radio" name="client-type" id="client-business" value="business" checked>
+      <label for="client-business">Cliente con P.IVA</label>
+      <input type="radio" name="client-type" id="client-private" value="private">
+      <label for="client-private">Privato</label>
+    </div>
+  </fieldset>
 
   <label class="amount-label" for="amount">Importo fattura</label>
   <div class="amount-field">
@@ -375,6 +434,12 @@ function formatRate(hundredths) {
 function isValidRate(h) {
   return h >= 0n && h < 100n * 100n;
 }
+
+// Private clients are not withholding agents: no withholding tax applies.
+function effectiveRates(rates, clientType) {
+  if (clientType === "private") return { ...rates, withholding: 0n };
+  return rates;
+}
 // ==== LOGIC END ============================================================
 
 
@@ -395,6 +460,24 @@ function loadRates() {
     // Corrupted or unavailable storage: keep defaults
   }
   return rates;
+}
+
+const CLIENT_TYPE_KEY = "commercialistapp.clientType";
+
+function loadClientType() {
+  try {
+    return localStorage.getItem(CLIENT_TYPE_KEY) === "private" ? "private" : "business";
+  } catch (_) {
+    return "business";
+  }
+}
+
+function saveClientType(type) {
+  try {
+    localStorage.setItem(CLIENT_TYPE_KEY, type);
+  } catch (_) {
+    // Not critical: the selection simply won't be remembered
+  }
 }
 
 function saveRates(rates) {
@@ -425,18 +508,32 @@ const AMOUNT_ERRORS = {
 };
 
 let rates = loadRates();
+let clientType = loadClientType();
 let errorTimer = null;
 
 function refreshRateLabels() {
   for (const key of RATE_KEYS) {
     $("rate-label-" + key).textContent = formatRate(rates[key]) + "%";
   }
+  if (clientType === "private") $("rate-label-withholding").textContent = "";
+}
+
+// Withholding row: shows the amount, a placeholder, or "non applicata"
+function renderWithholding(amountCents) {
+  const out = $("out-withholding");
+  const notApplied = clientType === "private";
+  out.classList.toggle("negative", !notApplied);
+  out.classList.toggle("not-applied", notApplied);
+  if (notApplied) out.textContent = "non applicata";
+  else if (amountCents === null) out.textContent = "–";
+  else out.textContent = "− " + formatEur(amountCents);
 }
 
 function clearResults() {
-  for (const id of ["out-base", "out-enpav", "out-withholding", "out-vat", "out-total"]) {
+  for (const id of ["out-base", "out-enpav", "out-vat", "out-total"]) {
     $(id).textContent = "–";
   }
+  renderWithholding(null);
   sheet.classList.add("empty");
 }
 
@@ -470,10 +567,10 @@ function update(immediateError = false) {
     return;
   }
 
-  const r = breakdown(parsed.value, rates);
+  const r = breakdown(parsed.value, effectiveRates(rates, clientType));
   $("out-base").textContent = formatEur(r.base);
   $("out-enpav").textContent = formatEur(r.enpav);
-  $("out-withholding").textContent = "− " + formatEur(r.withholding);
+  renderWithholding(r.withholding);
   $("out-vat").textContent = formatEur(r.vat);
   $("out-total").textContent = formatEur(r.total);
   sheet.classList.remove("empty");
@@ -544,7 +641,20 @@ dialog.addEventListener("keydown", (e) => {
   }
 });
 
+// ---- Client type ----------------------------------------------------------
+for (const radio of document.querySelectorAll('input[name="client-type"]')) {
+  radio.checked = radio.value === clientType;
+  radio.addEventListener("change", () => {
+    if (!radio.checked) return;
+    clientType = radio.value;
+    saveClientType(clientType);
+    refreshRateLabels();
+    update(false);
+  });
+}
+
 refreshRateLabels();
+clearResults();
 setHint(DEFAULT_HINT, false);
 
 // ---- Offline support ------------------------------------------------------
