@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F6E68" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11181C" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Scorporo fattura: importo iniziale, contributo ENPAV, ritenuta e IVA.">
+<title>CommercialistApp</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #E6ECEE;
+    --paper: #FFFFFF;
+    --ink: #1B2A33;
+    --muted: #5B6B74;
+    --rule: #CBD5DA;
+    --accent: #0F6E68;
+    --accent-ink: #FFFFFF;
+    --negative: #A23B3B;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11181C;
+      --paper: #1A2328;
+      --ink: #E2E9EC;
+      --muted: #93A3AB;
+      --rule: #2E3B42;
+      --accent: #4FB3A9;
+      --accent-ink: #0B1F1D;
+      --negative: #E58A8A;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.4;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  main {
+    max-width: 30rem;
+    margin: 0 auto;
+    padding: 1.25rem 1.25rem 2.5rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 650;
+  }
+  .icon-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--paper); color: var(--ink); }
+  .icon-btn svg { width: 1.5rem; height: 1.5rem; }
+
+  /* Amount input: the focal element of the page */
+  .amount-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .amount-field {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.2rem;
+  }
+  .amount-field:focus-within { border-bottom-color: var(--accent); }
+  .currency {
+    font-size: 2rem;
+    color: var(--muted);
+  }
+  #amount {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 2.6rem;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  #amount::placeholder { color: var(--rule); }
+
+  .hint {
+    min-height: 1.4em;
+    margin: 0.5rem 0 1.5rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .hint.error { color: var(--negative); }
+
+  /* Breakdown sheet */
+  .sheet {
+    background: var(--paper);
+    border-radius: 8px;
+    padding: 1.1rem 1.25rem;
+  }
+  .sheet dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 1rem;
+    row-gap: 0.9rem;
+    align-items: baseline;
+  }
+  .sheet dt { margin: 0; }
+  .sheet dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sheet dd.negative { color: var(--negative); }
+  .sheet .total {
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--rule);
+  }
+  .sheet dd.total { font-size: 1.25rem; }
+  .rate { color: var(--muted); }
+  .sheet.empty dd { color: var(--muted); font-weight: 400; }
+
+  /* Settings dialog */
+  dialog {
+    width: min(26rem, calc(100vw - 2rem));
+    padding: 1.5rem;
+    border: 0;
+    border-radius: 10px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog h2 {
+    margin: 0 0 1.25rem;
+    font-size: 1.15rem;
+    font-weight: 650;
+  }
+  .rate-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+  }
+  .rate-input {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    border-bottom: 2px solid var(--rule);
+  }
+  .rate-input:focus-within { border-bottom-color: var(--accent); }
+  .rate-input input {
+    width: 4.5rem;
+    padding: 0.25rem 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .rate-input span { color: var(--muted); }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .actions .spacer { flex: 1; }
+  button.text-btn, button.primary {
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button.text-btn {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+  }
+  button.primary {
+    border: 0;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  #reset-btn { padding-left: 0; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  #amount:focus-visible, .rate-input input:focus-visible { outline: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>CommercialistApp</h1>
+    <button type="button" class="icon-btn" id="settings-btn" aria-label="Modifica aliquote">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
+
+  <label class="amount-label" for="amount">Importo fattura</label>
+  <div class="amount-field">
+    <span class="currency" aria-hidden="true">€</span>
+    <input id="amount" type="text" inputmode="decimal" enterkeyhint="done"
+           autocomplete="off" autocorrect="off" spellcheck="false"
+           placeholder="0,00" autofocus aria-describedby="amount-hint">
+  </div>
+  <p class="hint" id="amount-hint" aria-live="polite"></p>
+
+  <section class="sheet empty" id="sheet" aria-label="Scorporo">
+    <dl>
+      <dt>Importo iniziale</dt>
+      <dd id="out-base">–</dd>
+
+      <dt>Contributo ENPAV <span class="rate" id="rate-label-enpav"></span></dt>
+      <dd id="out-enpav">–</dd>
+
+      <dt>Ritenuta <span class="rate" id="rate-label-withholding"></span></dt>
+      <dd id="out-withholding" class="negative">–</dd>
+
+      <dt>IVA <span class="rate" id="rate-label-vat"></span></dt>
+      <dd id="out-vat">–</dd>
+
+      <dt class="total">Totale ricalcolato</dt>
+      <dd id="out-total" class="total">–</dd>
+    </dl>
+  </section>
+</main>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <h2 id="settings-title">Aliquote</h2>
+
+  <div class="rate-row">
+    <label for="rate-enpav">Contributo ENPAV</label>
+    <div class="rate-input">
+      <input id="rate-enpav" type="text" inputmode="decimal" autocomplete="off">
+      <span>%</span>
+    </div>
+  </div>
+  <div class="rate-row">
+    <label for="rate-withholding">Ritenuta</label>
+    <div class="rate-input">
+      <input id="rate-withholding" type="text" inputmode="decimal" autocomplete="off">
+      <span>%</span>
+    </div>
+  </div>
+  <div class="rate-row">
+    <label for="rate-vat">IVA</label>
+    <div class="rate-input">
+      <input id="rate-vat" type="text" inputmode="decimal" autocomplete="off">
+      <span>%</span>
+    </div>
+  </div>
+
+  <p class="hint error" id="settings-error" role="alert"></p>
+
+  <div class="actions">
+    <button type="button" class="text-btn" id="reset-btn">Ripristina predefinite</button>
+    <span class="spacer"></span>
+    <button type="button" class="text-btn" id="cancel-btn">Annulla</button>
+    <button type="button" class="primary" id="save-btn">Salva</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+// ==== LOGIC START ==========================================================
+// All money values are BigInt cents; all rates are BigInt hundredths of a
+// percent (e.g. 22% -> 2200n). Integer math gives exact half-up rounding.
+
+const DEFAULT_RATES = { enpav: 300n, withholding: 2000n, vat: 2200n };
+const RATE_KEYS = ["enpav", "withholding", "vat"];
+const RATE_DEN = 10000n;          // hundredths of percent -> fraction
+const FACTOR_DEN = 100000000n;    // RATE_DEN^2
+
+// Italian format: '.' only as thousands separator (groups of 3),
+// ',' only as decimal separator.
+const NUMBER_RE = /^(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?$/;
+
+// Parses Italian-formatted text into hundredths (cents or 1/100 of percent).
+// Returns { value } or { error: "empty" | "format" | "decimals" }.
+function parseHundredths(text) {
+  const cleaned = String(text).replace(/eur|€|%|\s/gi, "");
+  if (cleaned === "") return { error: "empty" };
+  const m = NUMBER_RE.exec(cleaned);
+  if (!m) return { error: "format" };
+  const dec = m[2] || "";
+  if (dec.length > 2) return { error: "decimals" };
+  const intPart = BigInt(m[1].replace(/\./g, ""));
+  const fracPart = BigInt((dec + "00").slice(0, 2));
+  return { value: intPart * 100n + fracPart };
+}
+
+// Integer division with half-up rounding, for a >= 0 and b > 0.
+function roundDiv(a, b) {
+  return (2n * a + b) / (2n * b);
+}
+
+// Breakdown factor scaled by FACTOR_DEN: 1 + e - w + (1 + e) * v
+function factorScaled(rates) {
+  const { enpav: e, withholding: w, vat: v } = rates;
+  return FACTOR_DEN + e * RATE_DEN - w * RATE_DEN + (RATE_DEN + e) * v;
+}
+
+function breakdown(totalCents, rates) {
+  const base = roundDiv(totalCents * FACTOR_DEN, factorScaled(rates));
+  const enpav = roundDiv(base * rates.enpav, RATE_DEN);
+  const withholding = roundDiv(base * rates.withholding, RATE_DEN);
+  const vat = roundDiv((base + enpav) * rates.vat, RATE_DEN);
+  const total = base + enpav - withholding + vat;
+  return { base, enpav, withholding, vat, total };
+}
+
+function formatEur(cents) {
+  const intPart = (cents / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const frac = (cents % 100n).toString().padStart(2, "0");
+  return "€ " + intPart + "," + frac;
+}
+
+// 2200n -> "22", 2250n -> "22,5", 2205n -> "22,05"
+function formatRate(hundredths) {
+  const intPart = (hundredths / 100n).toString();
+  const frac = hundredths % 100n;
+  if (frac === 0n) return intPart;
+  return intPart + "," + frac.toString().padStart(2, "0").replace(/0$/, "");
+}
+
+function isValidRate(h) {
+  return h >= 0n && h < 100n * 100n;
+}
+// ==== LOGIC END ============================================================
+
+
+// ---- Persistence ----------------------------------------------------------
+const STORAGE_KEY = "commercialistapp.rates";
+
+function loadRates() {
+  const rates = { ...DEFAULT_RATES };
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    for (const key of RATE_KEYS) {
+      if (typeof raw[key] === "string" && /^\d+$/.test(raw[key])) {
+        const value = BigInt(raw[key]);
+        if (isValidRate(value)) rates[key] = value;
+      }
+    }
+  } catch (_) {
+    // Corrupted or unavailable storage: keep defaults
+  }
+  return rates;
+}
+
+function saveRates(rates) {
+  const data = {};
+  for (const key of RATE_KEYS) data[key] = rates[key].toString();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+
+// ---- UI -------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const amountInput = $("amount");
+const amountHint = $("amount-hint");
+const sheet = $("sheet");
+const dialog = $("settings");
+const settingsError = $("settings-error");
+
+const DEFAULT_HINT = "Usa la virgola per i centesimi, es. 1.234,56";
+const AMOUNT_ERRORS = {
+  format: "Formato non valido. Usa la virgola per i centesimi e il punto solo per le migliaia, es. 1.234,56",
+  decimals: "Massimo 2 cifre dopo la virgola.",
+  zero: "L'importo deve essere maggiore di zero.",
+};
+
+let rates = loadRates();
+let errorTimer = null;
+
+function refreshRateLabels() {
+  for (const key of RATE_KEYS) {
+    $("rate-label-" + key).textContent = formatRate(rates[key]) + "%";
+  }
+}
+
+function clearResults() {
+  for (const id of ["out-base", "out-enpav", "out-withholding", "out-vat", "out-total"]) {
+    $(id).textContent = "–";
+  }
+  sheet.classList.add("empty");
+}
+
+function setHint(text, isError) {
+  amountHint.textContent = text;
+  amountHint.classList.toggle("error", isError);
+}
+
+// immediateError: show validation errors right away (blur / Enter) instead
+// of waiting, so half-typed values like "1.2" don't flash an error.
+function update(immediateError = false) {
+  clearTimeout(errorTimer);
+  const parsed = parseHundredths(amountInput.value);
+
+  let error = parsed.error;
+  if (!error && parsed.value === 0n) error = "zero";
+
+  if (error === "empty") {
+    clearResults();
+    setHint(DEFAULT_HINT, false);
+    return;
+  }
+  if (error) {
+    clearResults();
+    const show = () => setHint(AMOUNT_ERRORS[error], true);
+    if (immediateError) show();
+    else {
+      setHint(DEFAULT_HINT, false);
+      errorTimer = setTimeout(show, 900);
+    }
+    return;
+  }
+
+  const r = breakdown(parsed.value, rates);
+  $("out-base").textContent = formatEur(r.base);
+  $("out-enpav").textContent = formatEur(r.enpav);
+  $("out-withholding").textContent = "− " + formatEur(r.withholding);
+  $("out-vat").textContent = formatEur(r.vat);
+  $("out-total").textContent = formatEur(r.total);
+  sheet.classList.remove("empty");
+  setHint(DEFAULT_HINT, false);
+}
+
+amountInput.addEventListener("input", () => update(false));
+amountInput.addEventListener("blur", () => update(true));
+amountInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    update(true);
+    amountInput.blur(); // closes the on-screen keyboard
+  }
+});
+
+// ---- Settings dialog ------------------------------------------------------
+function fillRateInputs(source) {
+  for (const key of RATE_KEYS) $("rate-" + key).value = formatRate(source[key]);
+}
+
+$("settings-btn").addEventListener("click", () => {
+  fillRateInputs(rates);
+  settingsError.textContent = "";
+  dialog.showModal();
+});
+
+$("reset-btn").addEventListener("click", () => {
+  fillRateInputs(DEFAULT_RATES);
+  settingsError.textContent = "";
+});
+
+$("cancel-btn").addEventListener("click", () => dialog.close());
+
+function saveSettings() {
+  const labels = { enpav: "Contributo ENPAV", withholding: "Ritenuta", vat: "IVA" };
+  const newRates = {};
+  for (const key of RATE_KEYS) {
+    const input = $("rate-" + key);
+    const parsed = parseHundredths(input.value);
+    if (parsed.error || !isValidRate(parsed.value)) {
+      settingsError.textContent =
+        labels[key] + ": inserisci un valore tra 0 e 100, con la virgola per i decimali (max 2 cifre, es. 22,5).";
+      input.focus();
+      return;
+    }
+    newRates[key] = parsed.value;
+  }
+  if (factorScaled(newRates) <= 0n) {
+    settingsError.textContent = "Con queste aliquote lo scorporo non è calcolabile.";
+    return;
+  }
+
+  rates = newRates;
+  const saved = saveRates(rates);
+  refreshRateLabels();
+  update(false);
+  dialog.close();
+  if (!saved) {
+    setHint("Aliquote applicate, ma non salvate sul dispositivo: verranno perse alla chiusura.", true);
+  }
+}
+
+$("save-btn").addEventListener("click", saveSettings);
+dialog.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    saveSettings();
+  }
+});
+
+refreshRateLabels();
+setHint(DEFAULT_HINT, false);
+
+// ---- Offline support ------------------------------------------------------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    let reloading = false;
+    // When a new version is activated, reload once to show it
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
